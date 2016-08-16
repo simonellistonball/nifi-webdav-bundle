@@ -61,13 +61,13 @@
 		</dependency>
 
 		<!-- Milton WebDAV server -->
-		<dependency>
+		<!-- <dependency>
 			<groupId>io.milton</groupId>
 			<artifactId>milton-server-ce</artifactId>
 			<version>${milton.version}</version>
 			<scope>test</scope>
 		</dependency>
-
+ 		-->
 	</dependencies>
 	
 	<repositories>
