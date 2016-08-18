@@ -34,11 +34,17 @@
 		<dependency>
 			<groupId>org.apache.nifi</groupId>
 			<artifactId>nifi-ssl-context-service-api</artifactId>
+			<scope>provided</scope>
 		</dependency>
 		<dependency>
 			<groupId>org.apache.nifi</groupId>
 			<artifactId>nifi-processor-utils</artifactId>
 		</dependency>
+		<dependency>
+			<groupId>org.apache.nifi</groupId>
+			<artifactId>nifi-properties</artifactId>
+		</dependency>
+
 		<dependency>
 			<groupId>org.apache.nifi</groupId>
 			<artifactId>nifi-mock</artifactId>
@@ -61,19 +67,14 @@
 		</dependency>
 
 		<!-- Milton WebDAV server -->
-		<!-- <dependency>
-			<groupId>io.milton</groupId>
-			<artifactId>milton-server-ce</artifactId>
-			<version>${milton.version}</version>
-			<scope>test</scope>
-		</dependency>
- 		-->
+		<!-- <dependency> <groupId>io.milton</groupId> <artifactId>milton-server-ce</artifactId> 
+			<version>${milton.version}</version> <scope>test</scope> </dependency> -->
 	</dependencies>
-	
+
 	<repositories>
-        <repository>
-            <id>milton-repo</id>
-            <url>http://dl.bintray.com/milton/Milton</url>
-        </repository>       
-    </repositories> 
+		<repository>
+			<id>milton-repo</id>
+			<url>http://dl.bintray.com/milton/Milton</url>
+		</repository>
+	</repositories>
 </project>
