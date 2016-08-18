@@ -17,7 +17,6 @@
 package org.apache.nifi.processors.webdav;
 
 import java.io.IOException;
-import java.security.GeneralSecurityException;
 
 import org.apache.nifi.annotation.documentation.CapabilityDescription;
 import org.apache.nifi.annotation.documentation.SeeAlso;
@@ -31,7 +30,7 @@ import com.github.sardine.Sardine;
 
 @Tags({ "webdav", "delete" })
 @CapabilityDescription("Deletes WebDAV resource")
-@SeeAlso({ListWebDAV.class})
+@SeeAlso({ ListWebDAV.class })
 public class DeleteWebDAV extends AbstractWebDAVProcessor {
 
     @Override
@@ -41,11 +40,13 @@ public class DeleteWebDAV extends AbstractWebDAVProcessor {
             return;
         }
         try {
-            final Sardine sardine = buildSardine(context);
             final String url = context.getProperty(URL).evaluateAttributeExpressions(flowFile).getValue();
+            addAuth(context, url);
+            final Sardine sardine = buildSardine(context);
+
             sardine.delete(url);
             session.transfer(flowFile, RELATIONSHIP_SUCCESS);
-        } catch (IOException | GeneralSecurityException e) {
+        } catch (IOException e) {
             getLogger().error("Failed to delete WebDAV resource", e);
             flowFile = session.penalize(flowFile);
             session.transfer(flowFile, RELATIONSHIP_FAILURE);

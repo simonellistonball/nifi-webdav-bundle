@@ -53,30 +53,27 @@ import com.github.sardine.Sardine;
 @InputRequirement(Requirement.INPUT_REQUIRED)
 public class FetchWebDAV extends AbstractWebDAVProcessor {
 
-    private static final PropertyDescriptor GET_ALL_PROPS = new PropertyDescriptor.Builder()
-            .name("Get All Properties")
-            .description("Whether to fetch all properties for the resource")
-            .required(true)
-            .addValidator(StandardValidators.BOOLEAN_VALIDATOR)
-            .expressionLanguageSupported(true)
-            .build();
-    
+    private static final PropertyDescriptor GET_ALL_PROPS = new PropertyDescriptor.Builder().name("Get All Properties").description("Whether to fetch all properties for the resource").required(true)
+            .addValidator(StandardValidators.BOOLEAN_VALIDATOR).expressionLanguageSupported(true).build();
+
     private final static List<PropertyDescriptor> properties;
     private final static Set<Relationship> relationships;
-    
-    static{
+
+    static {
         final List<PropertyDescriptor> _properties = new ArrayList<>();
         _properties.add(URL);
         _properties.add(GET_ALL_PROPS);
-        
+
         _properties.add(SSL_CONTEXT_SERVICE);
         _properties.add(USERNAME);
         _properties.add(PASSWORD);
+        _properties.add(NTLM_AUTH);
         
         _properties.add(PROXY_HOST);
         _properties.add(PROXY_PORT);
         _properties.add(HTTP_PROXY_USERNAME);
         _properties.add(HTTP_PROXY_PASSWORD);
+        _properties.add(NTLM_PROXY_AUTH);
         properties = Collections.unmodifiableList(_properties);
 
         final Set<Relationship> _relationships = new HashSet<>();
@@ -84,7 +81,7 @@ public class FetchWebDAV extends AbstractWebDAVProcessor {
         _relationships.add(RELATIONSHIP_FAILURE);
         relationships = Collections.unmodifiableSet(_relationships);
     }
-    
+
     @Override
     public Set<Relationship> getRelationships() {
         return relationships;
@@ -104,9 +101,12 @@ public class FetchWebDAV extends AbstractWebDAVProcessor {
         boolean getAllProperties = context.getProperty(GET_ALL_PROPS).evaluateAttributeExpressions(flowFile).asBoolean();
 
         try {
-            Sardine sardine = buildSardine(context);
             try {
                 String url = flowFile.getAttribute("path");
+                addAuth(context, url);
+
+                Sardine sardine = buildSardine(context);
+
                 // get all the properties
                 if (getAllProperties) {
                     DavResource resource = sardine.list(url, 0, true).get(0);

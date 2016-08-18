@@ -18,7 +18,6 @@ package org.apache.nifi.processors.webdav;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.security.GeneralSecurityException;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -50,35 +49,40 @@ public class PutWebDAV extends AbstractWebDAVProcessor {
         if (flowFile == null) {
             return;
         }
+
+        final String url = context.getProperty(URL).evaluateAttributeExpressions(flowFile).getValue();
+        addAuth(context, url);
+        final Sardine sardine = buildSardine(context);
+        
+        final String contentType = flowFile.getAttribute("mime.type");
+        final long contentLength = flowFile.getSize();
+
+        final Map<String, String> headers = new HashMap<String, String>() {
+            private static final long serialVersionUID = 1L;
+            {
+                put(HTTP.CONTENT_TYPE, contentType);
+                put(HTTP.CONTENT_LEN, String.valueOf(contentLength));
+            }
+        };
+
         try {
-            final Sardine sardine = buildSardine(context);
-            final String url = context.getProperty(URL).evaluateAttributeExpressions(flowFile).getValue();
-            final String contentType = flowFile.getAttribute("mime.type");
-            final long contentLength = flowFile.getSize();
-
-            final Map<String, String> headers = new HashMap<String, String>() {
-                private static final long serialVersionUID = 1L;
-
-                {
-                    put(HTTP.CONTENT_TYPE, contentType);
-                    put(HTTP.CONTENT_LEN, String.valueOf(contentLength));
-                }
-            };
             session.read(flowFile, new InputStreamCallback() {
                 @Override
                 public void process(InputStream in) throws IOException {
-                    sardine.put(url, in, headers);
+                    try {
+                        sardine.put(url, in, headers);
+                    } catch (IOException e) {
+                        getLogger().error("Failed to put file", e);
+                        throw e;
+                    }
                 }
             });
-
-            // TODO - update the properties on the resource if required and include dynamic properties
-            // TODO - handle missing collections
-
             session.transfer(flowFile, RELATIONSHIP_SUCCESS);
-
-        } catch (GeneralSecurityException | IOException e) {
+        } catch (Exception e) {
             flowFile = session.penalize(flowFile);
             session.transfer(flowFile, RELATIONSHIP_FAILURE);
+            // TODO - update the properties on the resource if required and include dynamic properties
+            // TODO - handle missing collections
         }
     }
 }
