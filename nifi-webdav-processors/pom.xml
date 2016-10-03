@@ -16,7 +16,7 @@
 	<parent>
 		<groupId>org.apache.nifi</groupId>
 		<artifactId>nifi-webdav-bundle</artifactId>
-		<version>0.0.1-SNAPSHOT</version>
+		<version>0.0.2-SNAPSHOT</version>
 	</parent>
 
 	<artifactId>nifi-webdav-processors</artifactId>
@@ -67,9 +67,40 @@
 		</dependency>
 
 		<!-- Milton WebDAV server -->
-		<!-- <dependency> <groupId>io.milton</groupId> <artifactId>milton-server-ce</artifactId> 
-			<version>${milton.version}</version> <scope>test</scope> </dependency> -->
+		<dependency>
+			<groupId>io.milton</groupId>
+			<artifactId>milton-server-ce</artifactId>
+			<version>${milton.version}</version>
+			<scope>test</scope>
+			<exclusions>
+				<exclusion>
+					<groupId>io.milton</groupId>
+					<artifactId>milton-mail-server</artifactId>
+				</exclusion>
+			</exclusions>
+		</dependency>
+
+		<!-- https://mvnrepository.com/artifact/org.apache.tomcat/catalina -->
+		<dependency>
+			<groupId>org.apache.tomcat</groupId>
+			<artifactId>catalina</artifactId>
+			<version>6.0.45</version>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.eclipse.jetty</groupId>
+			<artifactId>jetty-server</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.eclipse.jetty</groupId>
+			<artifactId>jetty-servlet</artifactId>
+			<scope>test</scope>
+		</dependency>
+
 	</dependencies>
+
+
 
 	<repositories>
 		<repository>
