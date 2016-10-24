@@ -30,9 +30,9 @@ import org.apache.nifi.components.Validator;
 import org.apache.nifi.processor.AbstractProcessor;
 import org.apache.nifi.processor.ProcessContext;
 import org.apache.nifi.processor.Relationship;
+import org.apache.nifi.processor.exception.ProcessException;
 import org.apache.nifi.processor.util.StandardValidators;
 import org.apache.nifi.ssl.SSLContextService;
-import org.apache.nifi.util.NiFiProperties;
 
 import com.github.sardine.Sardine;
 import com.github.sardine.impl.SardineImpl;
@@ -42,7 +42,8 @@ public abstract class AbstractWebDAVProcessor extends AbstractProcessor {
     public static final Relationship RELATIONSHIP_SUCCESS = new Relationship.Builder().name("success").description("Relationship for successfully received FlowFiles").build();
     public static final Relationship RELATIONSHIP_FAILURE = new Relationship.Builder().name("failure").description("Relationship for failed FlowFiles").build();
 
-    public static final PropertyDescriptor URL = new PropertyDescriptor.Builder().name("URL").description("A resource URL on a WebDAV server").required(true).expressionLanguageSupported(true).build();
+    public static final PropertyDescriptor URL = new PropertyDescriptor.Builder().name("URL").description("A resource URL on a WebDAV server").addValidator(StandardValidators.NON_EMPTY_VALIDATOR)
+            .required(true).expressionLanguageSupported(true).build();
 
     public static final PropertyDescriptor SSL_CONTEXT_SERVICE = new PropertyDescriptor.Builder().name("SSL Context Service")
             .description("The Controller Service to use in order to obtain an SSL Context").required(false).identifiesControllerService(SSLContextService.class).build();
@@ -52,7 +53,7 @@ public abstract class AbstractWebDAVProcessor extends AbstractProcessor {
     public static final PropertyDescriptor PASSWORD = new PropertyDescriptor.Builder().name("Password").description("Password for the user account").addValidator(Validator.VALID).required(false)
             .expressionLanguageSupported(true).sensitive(true).build();
     public static final PropertyDescriptor NTLM_AUTH = new PropertyDescriptor.Builder().name("NTLM Authentication").description("Use NTLM authentication")
-            .addValidator(StandardValidators.BOOLEAN_VALIDATOR).required(false).expressionLanguageSupported(true).allowableValues("true", "false").defaultValue("false").build();
+            .addValidator(StandardValidators.BOOLEAN_VALIDATOR).required(false).allowableValues("true", "false").defaultValue("false").build();
 
     public static final PropertyDescriptor PROXY_HOST = new PropertyDescriptor.Builder().name("Proxy Host").description("The fully qualified hostname or IP address of the proxy server")
             .addValidator(StandardValidators.NON_EMPTY_VALIDATOR).expressionLanguageSupported(true).build();
@@ -63,7 +64,7 @@ public abstract class AbstractWebDAVProcessor extends AbstractProcessor {
     public static final PropertyDescriptor HTTP_PROXY_PASSWORD = new PropertyDescriptor.Builder().name("Http Proxy Password").description("Http Proxy Password")
             .addValidator(StandardValidators.NON_EMPTY_VALIDATOR).required(false).expressionLanguageSupported(true).sensitive(true).build();
     public static final PropertyDescriptor NTLM_PROXY_AUTH = new PropertyDescriptor.Builder().name("Proxy NTLM Authentication").description("Use NTLM authentication for proxy connection")
-            .addValidator(StandardValidators.BOOLEAN_VALIDATOR).required(false).expressionLanguageSupported(true).allowableValues("true", "false").defaultValue("false").build();
+            .addValidator(StandardValidators.BOOLEAN_VALIDATOR).required(false).allowableValues("true", "false").defaultValue("false").build();
 
     private final static List<PropertyDescriptor> properties;
     private final static Set<Relationship> relationships;
@@ -74,18 +75,18 @@ public abstract class AbstractWebDAVProcessor extends AbstractProcessor {
     static {
         final List<PropertyDescriptor> _properties = new ArrayList<>();
         _properties.add(URL);
-        
+
         _properties.add(SSL_CONTEXT_SERVICE);
         _properties.add(USERNAME);
         _properties.add(PASSWORD);
         _properties.add(NTLM_AUTH);
-        
+
         _properties.add(PROXY_HOST);
         _properties.add(PROXY_PORT);
         _properties.add(HTTP_PROXY_USERNAME);
         _properties.add(HTTP_PROXY_PASSWORD);
         _properties.add(NTLM_PROXY_AUTH);
-        
+
         properties = Collections.unmodifiableList(_properties);
 
         final Set<Relationship> _relationships = new HashSet<>();
@@ -108,6 +109,21 @@ public abstract class AbstractWebDAVProcessor extends AbstractProcessor {
 
     @OnScheduled
     protected void init(ProcessContext context) throws GeneralSecurityException, IOException {
+        buildClient(context);
+    }
+
+    protected Sardine buildSardine(ProcessContext context) {
+        if (clientBuilder == null) {
+            try {
+                buildClient(context);
+            } catch (Exception e) {
+                throw new ProcessException(e);
+            }
+        }
+        return new SardineImpl(clientBuilder);
+    }
+
+    protected void buildClient(ProcessContext context) throws GeneralSecurityException, IOException {
         clientBuilder = HttpClientBuilder.create();
 
         // if we're using NTLM we have to do this by flow file because it required the hostname for the resource.
@@ -163,28 +179,20 @@ public abstract class AbstractWebDAVProcessor extends AbstractProcessor {
         }
     }
 
-    protected Sardine buildSardine(ProcessContext context) {
-        return new SardineImpl(clientBuilder);
-    }
-
-    protected final String workstation = workstation();
-
-    protected static String workstation() {
-        String res;
+    protected String workstation(String defaultHost) {
         try {
-            res = InetAddress.getLocalHost().getHostName();
+            return InetAddress.getLocalHost().getHostName();
         } catch (UnknownHostException e) {
-            NiFiProperties properties = NiFiProperties.getInstance();
-            res = properties.getProperty(NiFiProperties.WEB_HTTP_HOST);
-            if (res == null) {
-                res = "localhost";
-            }
+            return defaultHost;
         }
-        return res;
     }
 
-    protected String domain(String hostname) {
-        return hostname.substring(hostname.indexOf("."));
+    protected String domain(String username) {
+        return username.substring(0, username.indexOf("\\"));
+    }
+
+    protected String userpart(String username) {
+        return username.substring(username.indexOf("\\") + 1);
     }
 
     /**
@@ -203,8 +211,13 @@ public abstract class AbstractWebDAVProcessor extends AbstractProcessor {
                 uri = new URI(url);
                 String username = context.getProperty(USERNAME).evaluateAttributeExpressions().getValue();
                 String password = context.getProperty(PASSWORD).evaluateAttributeExpressions().getValue();
-                String domain = domain(uri.getHost());
-                credentialsProvider.setCredentials(new AuthScope(new HttpHost(uri.getHost(), uri.getPort())), new NTCredentials(username, password, workstation, domain));
+                String domain = domain(username);
+                String userpart = userpart(username);
+                String workstation = workstation("localhost");
+               
+                getLogger().info(String.format("Logging in as user: %s, domain: %s", userpart, domain));
+
+                credentialsProvider.setCredentials(new AuthScope(new HttpHost(uri.getHost(), uri.getPort())), new NTCredentials(userpart, password, workstation, domain));
             } catch (URISyntaxException e) {
                 getLogger().warn("Invalid URL for authentication, webdav will probably fail", e);
             }

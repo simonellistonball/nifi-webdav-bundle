@@ -53,12 +53,13 @@ public class PutWebDAV extends AbstractWebDAVProcessor {
         final String url = context.getProperty(URL).evaluateAttributeExpressions(flowFile).getValue();
         addAuth(context, url);
         final Sardine sardine = buildSardine(context);
-        
+
         final String contentType = flowFile.getAttribute("mime.type");
         final long contentLength = flowFile.getSize();
 
         final Map<String, String> headers = new HashMap<String, String>() {
             private static final long serialVersionUID = 1L;
+
             {
                 put(HTTP.CONTENT_TYPE, contentType);
                 put(HTTP.CONTENT_LEN, String.valueOf(contentLength));

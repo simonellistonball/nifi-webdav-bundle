@@ -29,8 +29,6 @@ public class ListWebDAVTest {
     @Before
     public void init() {
         // start a dummy webdav server
-        
-        
         testRunner = TestRunners.newTestRunner(ListWebDAV.class);
         testRunner.assertAllFlowFilesTransferred(ListWebDAV.RELATIONSHIP_SUCCESS);
     }
