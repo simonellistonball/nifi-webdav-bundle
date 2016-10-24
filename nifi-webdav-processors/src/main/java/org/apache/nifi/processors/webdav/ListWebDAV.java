@@ -79,7 +79,7 @@ public class ListWebDAV extends AbstractWebDAVProcessor {
         _properties.add(USERNAME);
         _properties.add(PASSWORD);
         _properties.add(NTLM_AUTH);
-        
+
         _properties.add(PROXY_HOST);
         _properties.add(PROXY_PORT);
         _properties.add(HTTP_PROXY_USERNAME);
@@ -109,62 +109,66 @@ public class ListWebDAV extends AbstractWebDAVProcessor {
         String url = context.getProperty(URL).evaluateAttributeExpressions().getValue();
         addAuth(context, url);
         Sardine sardine = buildSardine(context);
+        String lastModifiedState = null;
         try {
             StateMap state = stateManager.getState(Scope.CLUSTER);
+            lastModifiedState = state.get("lastModified");
+        } catch (IOException e) {
+            getLogger().error("Failed to load state", e);
+        }
+        
+        if (lastModifiedState == null) lastModifiedState = "0";
+        long lastModified = Long.valueOf(lastModifiedState);
+        long maxModified = 0;
+        
+        int depth = context.getProperty(DEPTH).asInteger();
 
-            long lastModified = Long.getLong(state.get("lastModified"));
-            long maxModified = 0;
+        List<DavResource> list;
+        LinkedList<FlowFile> files = new LinkedList<FlowFile>();
+        try {
+            list = sardine.list(url, depth);
 
-            int depth = context.getProperty(DEPTH).asInteger();
+            for (final DavResource resource : list) {
+                final long modifiedAt = resource.getModified().getTime();
+                if (modifiedAt <= lastModified) {
+                    continue;
+                } else {
+                    final long createdAt = resource.getCreation().getTime();
 
-            List<DavResource> list;
-            LinkedList<FlowFile> files = new LinkedList<FlowFile>();
-            try {
-                list = sardine.list(url, depth);
+                    FlowFile flowFile = session.create();
+                    Map<String, String> attributes = new HashMap<String, String>() {
+                        private static final long serialVersionUID = 1L;
 
-                for (final DavResource resource : list) {
-                    final long modifiedAt = resource.getModified().getTime();
-                    if (modifiedAt <= lastModified) {
-                        continue;
-                    } else {
-                        final long createdAt = resource.getCreation().getTime();
-
-                        FlowFile flowFile = session.create();
-                        Map<String, String> attributes = new HashMap<String, String>() {
-                            private static final long serialVersionUID = 1L;
-
-                            {
-                                put("filename", resource.getName());
-                                put("path", resource.getPath());
-                                put("etag", resource.getEtag());
-                                put("mime.type", resource.getContentType());
-                                put("date.created", String.valueOf(createdAt));
-                                put("date.modified", String.valueOf(modifiedAt));
-                            }
-                        };
-                        flowFile = session.putAllAttributes(flowFile, attributes);
-                        files.add(flowFile);
-                        // store the modified dates in Processor State to avoid duplication
-                        if (modifiedAt > maxModified)
-                            maxModified = modifiedAt;
-                    }
-                }
-            } catch (IOException e) {
-                getLogger().error("Failed to list webdav resources", e);
-            }
-
-            if (!files.isEmpty()) {
-                session.transfer(files, RELATIONSHIP_SUCCESS);
-                Map<String, String> newState = new HashMap<String, String>();
-                newState.put("lastModified", String.valueOf(maxModified));
-                try {
-                    stateManager.setState(newState, Scope.CLUSTER);
-                } catch (IOException e) {
-                    getLogger().error("Failed to save state", e);
+                        {
+                            put("url", resource.getName());
+                            put("path", resource.getPath());
+                            put("etag", resource.getEtag());
+                            put("mime.type", resource.getContentType());
+                            put("date.created", String.valueOf(createdAt));
+                            put("date.modified", String.valueOf(modifiedAt));
+                        }
+                    };
+                    flowFile = session.putAllAttributes(flowFile, attributes);
+                    files.add(flowFile);
+                    // store the modified dates in Processor State to avoid duplication
+                    if (modifiedAt > maxModified)
+                        maxModified = modifiedAt;
                 }
             }
         } catch (IOException e) {
-            getLogger().error("Failed to load state", e);
+            context.yield();
+            throw new ProcessException("Failed to list webdav resources", e);
+        }
+
+        if (!files.isEmpty()) {
+            session.transfer(files, RELATIONSHIP_SUCCESS);
+            Map<String, String> newState = new HashMap<String, String>();
+            newState.put("lastModified", String.valueOf(maxModified));
+            try {
+                stateManager.setState(newState, Scope.CLUSTER);
+            } catch (IOException e) {
+                getLogger().error("Failed to save state", e);
+            }
         }
 
     }

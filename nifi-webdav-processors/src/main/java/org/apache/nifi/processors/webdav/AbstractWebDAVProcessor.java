@@ -42,7 +42,8 @@ public abstract class AbstractWebDAVProcessor extends AbstractProcessor {
     public static final Relationship RELATIONSHIP_SUCCESS = new Relationship.Builder().name("success").description("Relationship for successfully received FlowFiles").build();
     public static final Relationship RELATIONSHIP_FAILURE = new Relationship.Builder().name("failure").description("Relationship for failed FlowFiles").build();
 
-    public static final PropertyDescriptor URL = new PropertyDescriptor.Builder().name("URL").description("A resource URL on a WebDAV server").addValidator(StandardValidators.NON_EMPTY_VALIDATOR).required(true).expressionLanguageSupported(true).build();
+    public static final PropertyDescriptor URL = new PropertyDescriptor.Builder().name("URL").description("A resource URL on a WebDAV server").addValidator(StandardValidators.NON_EMPTY_VALIDATOR)
+            .required(true).expressionLanguageSupported(true).build();
 
     public static final PropertyDescriptor SSL_CONTEXT_SERVICE = new PropertyDescriptor.Builder().name("SSL Context Service")
             .description("The Controller Service to use in order to obtain an SSL Context").required(false).identifiesControllerService(SSLContextService.class).build();
@@ -74,18 +75,18 @@ public abstract class AbstractWebDAVProcessor extends AbstractProcessor {
     static {
         final List<PropertyDescriptor> _properties = new ArrayList<>();
         _properties.add(URL);
-        
+
         _properties.add(SSL_CONTEXT_SERVICE);
         _properties.add(USERNAME);
         _properties.add(PASSWORD);
         _properties.add(NTLM_AUTH);
-        
+
         _properties.add(PROXY_HOST);
         _properties.add(PROXY_PORT);
         _properties.add(HTTP_PROXY_USERNAME);
         _properties.add(HTTP_PROXY_PASSWORD);
         _properties.add(NTLM_PROXY_AUTH);
-        
+
         properties = Collections.unmodifiableList(_properties);
 
         final Set<Relationship> _relationships = new HashSet<>();
@@ -177,7 +178,7 @@ public abstract class AbstractWebDAVProcessor extends AbstractProcessor {
             clientBuilder.setSslcontext(sslContext);
         }
     }
-    
+
     protected String workstation(String defaultHost) {
         try {
             return InetAddress.getLocalHost().getHostName();
@@ -186,8 +187,12 @@ public abstract class AbstractWebDAVProcessor extends AbstractProcessor {
         }
     }
 
-    protected String domain(String hostname) {
-        return hostname.substring(hostname.indexOf("."));
+    protected String domain(String username) {
+        return username.substring(0, username.indexOf("\\"));
+    }
+
+    protected String userpart(String username) {
+        return username.substring(username.indexOf("\\") + 1);
     }
 
     /**
@@ -206,9 +211,13 @@ public abstract class AbstractWebDAVProcessor extends AbstractProcessor {
                 uri = new URI(url);
                 String username = context.getProperty(USERNAME).evaluateAttributeExpressions().getValue();
                 String password = context.getProperty(PASSWORD).evaluateAttributeExpressions().getValue();
-                String domain = domain(uri.getHost());
+                String domain = domain(username);
+                String userpart = userpart(username);
                 String workstation = workstation("localhost");
-                credentialsProvider.setCredentials(new AuthScope(new HttpHost(uri.getHost(), uri.getPort())), new NTCredentials(username, password, workstation, domain));
+               
+                getLogger().info(String.format("Logging in as user: %s, domain: %s", userpart, domain));
+
+                credentialsProvider.setCredentials(new AuthScope(new HttpHost(uri.getHost(), uri.getPort())), new NTCredentials(userpart, password, workstation, domain));
             } catch (URISyntaxException e) {
                 getLogger().warn("Invalid URL for authentication, webdav will probably fail", e);
             }
