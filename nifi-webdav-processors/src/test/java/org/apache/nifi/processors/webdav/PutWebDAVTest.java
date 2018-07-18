@@ -41,9 +41,10 @@ public class PutWebDAVTest {
     public void testProcessor() {
 
         Map<String, String> attributes = new HashMap<>();
-        attributes.put("filename", "test.txt");
+        attributes.put("filename", "test2.txt");
+        attributes.put("path", "superDir/subDir");
 
-        testRunner.setProperty(PutWebDAV.URL, WEBDAV_BASE_URL + "/${filename}");
+        testRunner.setProperty(PutWebDAV.URL, WEBDAV_BASE_URL + "/${path}/${filename}");
         testRunner.enqueue("This is a test file.", attributes);
         testRunner.run();
 

@@ -51,6 +51,7 @@ public class PutWebDAV extends AbstractWebDAVProcessor {
         }
 
         final String url = context.getProperty(URL).evaluateAttributeExpressions(flowFile).getValue();
+        final String basePath = url.substring(0, url.lastIndexOf("/"));
         addAuth(context, url);
         final Sardine sardine = buildSardine(context);
         
@@ -69,6 +70,7 @@ public class PutWebDAV extends AbstractWebDAVProcessor {
                 @Override
                 public void process(InputStream in) throws IOException {
                     try {
+                        createDirectory(basePath, sardine);
                         sardine.put(url, in, headers);
                     } catch (IOException e) {
                         getLogger().error("Failed to put file", e);
@@ -83,5 +85,18 @@ public class PutWebDAV extends AbstractWebDAVProcessor {
             // TODO - update the properties on the resource if required and include dynamic properties
             // TODO - handle missing collections
         }
+    }
+
+    private void createDirectory(String path, Sardine sardine) throws IOException {
+
+        if(!sardine.exists(path)) {
+            String superDirectory = getSuperDirectory(path);
+            createDirectory(superDirectory, sardine);
+            sardine.createDirectory(path);
+        }
+    }
+
+    private String getSuperDirectory(String path) {
+        return path.substring(0, path.lastIndexOf("/"));
     }
 }
