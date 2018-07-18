@@ -61,7 +61,6 @@ public class PutWebDAV extends AbstractWebDAVProcessor {
             private static final long serialVersionUID = 1L;
             {
                 put(HTTP.CONTENT_TYPE, contentType);
-                put(HTTP.CONTENT_LEN, String.valueOf(contentLength));
             }
         };
 
