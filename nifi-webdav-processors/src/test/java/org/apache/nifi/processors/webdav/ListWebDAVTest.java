@@ -21,23 +21,30 @@ import org.apache.nifi.util.TestRunners;
 import org.junit.Before;
 import org.junit.Test;
 
-
 public class ListWebDAVTest {
 
     private TestRunner testRunner;
 
+    // The base url of the WebDAV
+    private static final String WEBDAV_BASE_URL =  "";
+
     @Before
     public void init() {
         // start a dummy webdav server
-        
-        
+
         testRunner = TestRunners.newTestRunner(ListWebDAV.class);
-        testRunner.assertAllFlowFilesTransferred(ListWebDAV.RELATIONSHIP_SUCCESS);
+
     }
 
     @Test
     public void testProcessor() {
+        testRunner.setValidateExpressionUsage(true);
+        testRunner.setProperty(ListWebDAV.URL, WEBDAV_BASE_URL);
+        testRunner.assertValid();
 
+        testRunner.run();
+
+        testRunner.assertAllFlowFilesTransferred(ListWebDAV.RELATIONSHIP_SUCCESS);
     }
 
 }
