@@ -177,7 +177,11 @@ public abstract class AbstractWebDAVProcessor extends AbstractProcessor {
         try {
             res = InetAddress.getLocalHost().getHostName();
         } catch (UnknownHostException e) {
-            throw new RuntimeException("fail to get the hostname name");
+            NiFiProperties properties = NiFiProperties.getInstance();
+            res = properties.getProperty(NiFiProperties.WEB_HTTP_HOST);
+            if (res == null) {
+                res = "localhost";
+            }
         }
         return res;
     }
