@@ -21,7 +21,10 @@ import org.apache.nifi.util.TestRunners;
 import org.junit.Before;
 import org.junit.Test;
 
-public class ListWebDAVTest {
+import java.util.HashMap;
+import java.util.Map;
+
+public class PutWebDAVTest {
 
     private TestRunner testRunner;
 
@@ -31,20 +34,21 @@ public class ListWebDAVTest {
     @Before
     public void init() {
         // start a dummy webdav server
-
-        testRunner = TestRunners.newTestRunner(ListWebDAV.class);
-
+        testRunner = TestRunners.newTestRunner(PutWebDAV.class);
     }
 
     @Test
     public void testProcessor() {
-        testRunner.setValidateExpressionUsage(true);
-        testRunner.setProperty(ListWebDAV.URL, WEBDAV_BASE_URL);
-        testRunner.assertValid();
 
+        Map<String, String> attributes = new HashMap<>();
+        attributes.put("filename", "test2.txt");
+        attributes.put("path", "superDir/subDir");
+
+        testRunner.setProperty(PutWebDAV.URL, WEBDAV_BASE_URL + "/${path}/${filename}");
+        testRunner.enqueue("This is a test file.", attributes);
         testRunner.run();
 
-        testRunner.assertAllFlowFilesTransferred(ListWebDAV.RELATIONSHIP_SUCCESS);
+        testRunner.assertAllFlowFilesTransferred(PutWebDAV.RELATIONSHIP_SUCCESS);
     }
 
 }

@@ -53,8 +53,13 @@ import com.github.sardine.Sardine;
 @InputRequirement(Requirement.INPUT_REQUIRED)
 public class FetchWebDAV extends AbstractWebDAVProcessor {
 
-    private static final PropertyDescriptor GET_ALL_PROPS = new PropertyDescriptor.Builder().name("Get All Properties").description("Whether to fetch all properties for the resource").required(true)
-            .addValidator(StandardValidators.BOOLEAN_VALIDATOR).expressionLanguageSupported(true).build();
+    public static final PropertyDescriptor GET_ALL_PROPS =
+            new PropertyDescriptor.Builder()
+                    .name("Get All Properties")
+                    .description("Whether to fetch all properties for the resource")
+                    .required(false)
+                    .defaultValue("false")
+                    .addValidator(StandardValidators.BOOLEAN_VALIDATOR).expressionLanguageSupported(true).build();
 
     private final static List<PropertyDescriptor> properties;
     private final static Set<Relationship> relationships;
@@ -102,7 +107,7 @@ public class FetchWebDAV extends AbstractWebDAVProcessor {
 
         try {
             try {
-                String url = flowFile.getAttribute("path");
+                String url = context.getProperty(URL).evaluateAttributeExpressions(flowFile).getValue();
                 addAuth(context, url);
 
                 Sardine sardine = buildSardine(context);

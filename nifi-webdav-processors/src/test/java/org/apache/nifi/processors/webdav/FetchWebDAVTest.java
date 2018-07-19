@@ -16,35 +16,46 @@
  */
 package org.apache.nifi.processors.webdav;
 
+import java.util.List;
+
+import org.apache.nifi.util.MockFlowFile;
 import org.apache.nifi.util.TestRunner;
 import org.apache.nifi.util.TestRunners;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
-public class ListWebDAVTest {
+
+public class FetchWebDAVTest {
 
     private TestRunner testRunner;
 
-    // The base url of the WebDAV
-    private static final String WEBDAV_BASE_URL =  "";
+    // The url of the test file in the WebDAV
+    private static final String WEBDAV_TARGET_URL =  "";
 
     @Before
     public void init() {
         // start a dummy webdav server
-
-        testRunner = TestRunners.newTestRunner(ListWebDAV.class);
+        testRunner = TestRunners.newTestRunner(FetchWebDAV.class);
+        testRunner.setValidateExpressionUsage(false);
 
     }
 
     @Test
-    public void testProcessor() {
-        testRunner.setValidateExpressionUsage(true);
-        testRunner.setProperty(ListWebDAV.URL, WEBDAV_BASE_URL);
-        testRunner.assertValid();
+    public void testProcessor() throws Exception {
+
+        testRunner.setProperty(FetchWebDAV.URL, WEBDAV_TARGET_URL);
+
+        testRunner.enqueue("");
 
         testRunner.run();
 
-        testRunner.assertAllFlowFilesTransferred(ListWebDAV.RELATIONSHIP_SUCCESS);
-    }
+        testRunner.assertAllFlowFilesTransferred(FetchWebDAV.RELATIONSHIP_SUCCESS);
 
+        List<MockFlowFile> successFiles = testRunner.getFlowFilesForRelationship(FetchWebDAV.RELATIONSHIP_SUCCESS);
+        Assert.assertEquals(1, successFiles.size());
+        MockFlowFile successOne = successFiles.get(0);
+        System.out.println("File attributes : " + successOne.getAttributes());
+        System.out.println("File content : " + new String(testRunner.getContentAsByteArray(successOne), "UTF-8"));
+    }
 }

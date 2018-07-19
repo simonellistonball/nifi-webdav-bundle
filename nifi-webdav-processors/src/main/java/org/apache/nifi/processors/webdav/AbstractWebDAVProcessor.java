@@ -42,7 +42,9 @@ public abstract class AbstractWebDAVProcessor extends AbstractProcessor {
     public static final Relationship RELATIONSHIP_SUCCESS = new Relationship.Builder().name("success").description("Relationship for successfully received FlowFiles").build();
     public static final Relationship RELATIONSHIP_FAILURE = new Relationship.Builder().name("failure").description("Relationship for failed FlowFiles").build();
 
-    public static final PropertyDescriptor URL = new PropertyDescriptor.Builder().name("URL").description("A resource URL on a WebDAV server").required(true).expressionLanguageSupported(true).build();
+    public static final PropertyDescriptor URL = new PropertyDescriptor.Builder().name("URL")
+            .description("A resource URL on a WebDAV server").required(true).expressionLanguageSupported(true)
+            .addValidator(StandardValidators.NON_EMPTY_VALIDATOR).build();
 
     public static final PropertyDescriptor SSL_CONTEXT_SERVICE = new PropertyDescriptor.Builder().name("SSL Context Service")
             .description("The Controller Service to use in order to obtain an SSL Context").required(false).identifiesControllerService(SSLContextService.class).build();
@@ -164,6 +166,7 @@ public abstract class AbstractWebDAVProcessor extends AbstractProcessor {
     }
 
     protected Sardine buildSardine(ProcessContext context) {
+        if(clientBuilder == null) clientBuilder = HttpClientBuilder.create();
         return new SardineImpl(clientBuilder);
     }
 
@@ -197,7 +200,7 @@ public abstract class AbstractWebDAVProcessor extends AbstractProcessor {
      * @throws URISyntaxException
      */
     protected void addAuth(ProcessContext context, String url) {
-        if (context.getProperty(NTLM_AUTH).asBoolean()) {
+        if (context.getProperty(NTLM_AUTH).evaluateAttributeExpressions().asBoolean()) {
             URI uri;
             try {
                 uri = new URI(url);

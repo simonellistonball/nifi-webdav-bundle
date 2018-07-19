@@ -107,12 +107,14 @@ public class ListWebDAV extends AbstractWebDAVProcessor {
         StateManager stateManager = context.getStateManager();
 
         String url = context.getProperty(URL).evaluateAttributeExpressions().getValue();
+        if (!url.endsWith("/")) url += "/";
         addAuth(context, url);
         Sardine sardine = buildSardine(context);
         try {
             StateMap state = stateManager.getState(Scope.CLUSTER);
 
-            long lastModified = Long.getLong(state.get("lastModified"));
+            String l = state.get("lastModified");
+            long lastModified = l == null ? 0 : Long.getLong(l);
             long maxModified = 0;
 
             int depth = context.getProperty(DEPTH).asInteger();
