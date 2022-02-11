@@ -16,25 +16,14 @@
  */
 package org.apache.nifi.processors.webdav;
 
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-
+import com.github.sardine.DavResource;
+import com.github.sardine.Sardine;
 import org.apache.nifi.annotation.behavior.InputRequirement;
 import org.apache.nifi.annotation.behavior.InputRequirement.Requirement;
-import org.apache.nifi.annotation.behavior.ReadsAttribute;
-import org.apache.nifi.annotation.behavior.ReadsAttributes;
 import org.apache.nifi.annotation.behavior.Stateful;
 import org.apache.nifi.annotation.behavior.WritesAttribute;
 import org.apache.nifi.annotation.behavior.WritesAttributes;
 import org.apache.nifi.annotation.documentation.CapabilityDescription;
-import org.apache.nifi.annotation.documentation.SeeAlso;
 import org.apache.nifi.annotation.documentation.Tags;
 import org.apache.nifi.components.PropertyDescriptor;
 import org.apache.nifi.components.state.Scope;
@@ -43,22 +32,26 @@ import org.apache.nifi.components.state.StateMap;
 import org.apache.nifi.flowfile.FlowFile;
 import org.apache.nifi.processor.ProcessContext;
 import org.apache.nifi.processor.ProcessSession;
+import org.apache.nifi.processor.ProcessorInitializationContext;
 import org.apache.nifi.processor.Relationship;
 import org.apache.nifi.processor.exception.ProcessException;
 import org.apache.nifi.processor.util.StandardValidators;
 
-import com.github.sardine.DavResource;
-import com.github.sardine.Sardine;
+import java.io.IOException;
+import java.util.*;
 
-@Tags({ "webdav", "list" })
-@CapabilityDescription("List Files in a WebDAV folder")
-@SeeAlso({})
-@ReadsAttributes({ @ReadsAttribute(attribute = "", description = "") })
-@WritesAttributes({ @WritesAttribute(attribute = "filename", description = "Filename of resource"), @WritesAttribute(attribute = "path", description = "Path of resource"),
-        @WritesAttribute(attribute = "etag", description = "Resource etag"), @WritesAttribute(attribute = "mime.type", description = "Content type of resource"),
-        @WritesAttribute(attribute = "date.created", description = "Date created (timestamp)"), @WritesAttribute(attribute = "date.modified", description = "Date modified (timestamp)") })
+@Tags({"webdav", "list"})
+@CapabilityDescription("List Files in a WebDAV folders")
+@WritesAttributes({@WritesAttribute(attribute = "filename", description = "Filename of resource"), @WritesAttribute(attribute = "path", description = "Path of resource"),
+        @WritesAttribute(attribute = "etag", description = "Resource etag"),
+        @WritesAttribute(attribute = "mime.type", description = "Content type of resource"),
+        @WritesAttribute(attribute = "isDirectory", description = "Is content directory"),
+        @WritesAttribute(attribute = "url", description = "URL to content"),
+        @WritesAttribute(attribute = "date.created", description = "Date created (timestamp)"),
+        @WritesAttribute(attribute = "date.modified", description = "Date modified (timestamp)")
+})
 @InputRequirement(Requirement.INPUT_FORBIDDEN)
-@Stateful(scopes = { Scope.CLUSTER }, description = "After performing a listing of files, the timestamp of the newest file is stored. "
+@Stateful(scopes = {Scope.CLUSTER}, description = "After performing a listing of files, the timestamp of the newest file is stored. "
         + "This allows the Processor to list only files that have been added or modified after "
         + "this date the next time that the Processor is run. State is stored across the cluster so that this Processor can be run on Primary Node only and if "
         + "a new Primary Node is selected, the new node will not duplicate the data that was listed by the previous Primary Node.")
@@ -67,29 +60,16 @@ public class ListWebDAV extends AbstractWebDAVProcessor {
     public static final PropertyDescriptor DEPTH = new PropertyDescriptor.Builder().name("Search Depth").description("The depth of links to follow for new collections")
             .addValidator(StandardValidators.INTEGER_VALIDATOR).defaultValue("1").build();
 
-    private final static List<PropertyDescriptor> properties;
-    private final static Set<Relationship> relationships;
+    private List<PropertyDescriptor> properties;
+    private Set<Relationship> relationships;
 
-    static {
-        final List<PropertyDescriptor> _properties = new ArrayList<>();
-        _properties.add(URL);
-        _properties.add(DEPTH);
+    @Override
+    protected void init(final ProcessorInitializationContext context) {
 
-        _properties.add(SSL_CONTEXT_SERVICE);
-        _properties.add(USERNAME);
-        _properties.add(PASSWORD);
-        _properties.add(NTLM_AUTH);
-        
-        _properties.add(PROXY_HOST);
-        _properties.add(PROXY_PORT);
-        _properties.add(HTTP_PROXY_USERNAME);
-        _properties.add(HTTP_PROXY_PASSWORD);
-        _properties.add(NTLM_PROXY_AUTH);
-        properties = Collections.unmodifiableList(_properties);
+        properties = List.of(URL, DEPTH, SSL_CONTEXT_SERVICE, USERNAME, PASSWORD, NTLM_AUTH, PROXY_CONFIGURATION_SERVICE,
+                PROXY_HOST, PROXY_PORT, HTTP_PROXY_USERNAME, HTTP_PROXY_PASSWORD, NTLM_PROXY_AUTH);
 
-        final Set<Relationship> _relationships = new HashSet<>();
-        _relationships.add(RELATIONSHIP_SUCCESS);
-        relationships = Collections.unmodifiableSet(_relationships);
+        relationships = Set.of(REL_SUCCESS);
     }
 
     @Override
@@ -104,68 +84,89 @@ public class ListWebDAV extends AbstractWebDAVProcessor {
 
     @Override
     public void onTrigger(final ProcessContext context, final ProcessSession session) throws ProcessException {
-        StateManager stateManager = context.getStateManager();
 
         String url = context.getProperty(URL).evaluateAttributeExpressions().getValue();
         addAuth(context, url);
-        Sardine sardine = buildSardine(context);
+
+        long lastModified;
         try {
-            StateMap state = stateManager.getState(Scope.CLUSTER);
-
-            long lastModified = Long.getLong(state.get("lastModified"));
-            long maxModified = 0;
-
-            int depth = context.getProperty(DEPTH).asInteger();
-
-            List<DavResource> list;
-            LinkedList<FlowFile> files = new LinkedList<FlowFile>();
-            try {
-                list = sardine.list(url, depth);
-
-                for (final DavResource resource : list) {
-                    final long modifiedAt = resource.getModified().getTime();
-                    if (modifiedAt <= lastModified) {
-                        continue;
-                    } else {
-                        final long createdAt = resource.getCreation().getTime();
-
-                        FlowFile flowFile = session.create();
-                        Map<String, String> attributes = new HashMap<String, String>() {
-                            private static final long serialVersionUID = 1L;
-
-                            {
-                                put("filename", resource.getName());
-                                put("path", resource.getPath());
-                                put("etag", resource.getEtag());
-                                put("mime.type", resource.getContentType());
-                                put("date.created", String.valueOf(createdAt));
-                                put("date.modified", String.valueOf(modifiedAt));
-                            }
-                        };
-                        flowFile = session.putAllAttributes(flowFile, attributes);
-                        files.add(flowFile);
-                        // store the modified dates in Processor State to avoid duplication
-                        if (modifiedAt > maxModified)
-                            maxModified = modifiedAt;
-                    }
-                }
-            } catch (IOException e) {
-                getLogger().error("Failed to list webdav resources", e);
-            }
-
-            if (!files.isEmpty()) {
-                session.transfer(files, RELATIONSHIP_SUCCESS);
-                Map<String, String> newState = new HashMap<String, String>();
-                newState.put("lastModified", String.valueOf(maxModified));
-                try {
-                    stateManager.setState(newState, Scope.CLUSTER);
-                } catch (IOException e) {
-                    getLogger().error("Failed to save state", e);
-                }
-            }
+            lastModified = Long.parseLong(readState(context, "lastModified", "0"));
         } catch (IOException e) {
-            getLogger().error("Failed to load state", e);
+            throw new ProcessException("Failed read State", e);
         }
 
+        LinkedList<FlowFile> files = new LinkedList<>();
+        long maxModified;
+        try {
+            maxModified = listDAVFile(session, url, context.getProperty(DEPTH).asInteger(), files, lastModified);
+        } catch (IOException e) {
+            throw new ProcessException("Failed List Files", e);
+        }
+
+
+        if (!files.isEmpty()) {
+            session.transfer(files, REL_SUCCESS);
+            try {
+                saveState(context, "lastModified", String.valueOf(maxModified));
+            } catch (IOException e) {
+                throw new ProcessException("Failed write state", e);
+            }
+
+        }
+
+    }
+
+    private long listDAVFile(ProcessSession session, String url, int depth, LinkedList<FlowFile> files, long lastModified) throws IOException {
+        long maxModified = 0;
+        Sardine sardine = buildSardine();
+        List<DavResource> list;
+        list = sardine.list(url, depth);
+        for (final DavResource resource : list) {
+            final long modifiedAt = resource.getModified().getTime();
+            if (modifiedAt > lastModified) {
+                files.add(createFile(session, resource));
+                if (modifiedAt > maxModified)
+                    maxModified = modifiedAt;
+            }
+        }
+        return maxModified;
+    }
+
+    private FlowFile createFile(ProcessSession session, DavResource resource) {
+        FlowFile flowFile = session.create();
+        Map<String, String> attributes = createAttributes(resource);
+        return session.putAllAttributes(flowFile, attributes);
+    }
+
+    private Map<String, String> createAttributes(DavResource resource) {
+        return new HashMap<>() {
+            private static final long serialVersionUID = 1L;
+
+            {
+                put("filename", resource.getName());
+                put("path", resource.getPath());
+                put("etag", resource.getEtag());
+                put("mime.type", resource.getContentType());
+                put("isDirecotry", String.valueOf(resource.isDirectory()));
+                if (resource.getCreation() != null)
+                    put("date.created", String.valueOf(resource.getCreation().getTime()));
+                if (resource.getModified() != null)
+                    put("date.modified", String.valueOf(resource.getModified().getTime()));
+            }
+        };
+    }
+
+    private String readState(ProcessContext context, String name, String defaultValue) throws IOException {
+        StateManager stateManager = context.getStateManager();
+        StateMap state = stateManager.getState(Scope.CLUSTER);
+        if (state.get(name) != null) {
+            return state.get("lastModified");
+        } else return defaultValue;
+    }
+
+    private void saveState(ProcessContext context, String name, String value) throws IOException {
+        Map<String, String> newState = new HashMap<>();
+        newState.put(name, value);
+        context.getStateManager().setState(newState, Scope.CLUSTER);
     }
 }

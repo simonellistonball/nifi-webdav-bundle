@@ -16,7 +16,7 @@
 	<parent>
 		<groupId>org.apache.nifi</groupId>
 		<artifactId>nifi-webdav-bundle</artifactId>
-		<version>0.0.1-SNAPSHOT</version>
+		<version>1.10.0</version>
 	</parent>
 
 	<artifactId>nifi-webdav-nar</artifactId>
@@ -26,11 +26,12 @@
 		<dependency>
 			<groupId>org.apache.nifi</groupId>
 			<artifactId>nifi-webdav-processors</artifactId>
-			<version>0.0.1-SNAPSHOT</version>
+			<version>1.10.0</version>
 		</dependency>
 		<dependency>
 			<groupId>org.apache.nifi</groupId>
 			<artifactId>nifi-standard-services-api-nar</artifactId>
+			<version>1.10.0</version>
 			<type>nar</type>
 		</dependency>
 	</dependencies>

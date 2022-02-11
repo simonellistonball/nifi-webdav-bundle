@@ -42,14 +42,14 @@ public class DeleteWebDAV extends AbstractWebDAVProcessor {
         try {
             final String url = context.getProperty(URL).evaluateAttributeExpressions(flowFile).getValue();
             addAuth(context, url);
-            final Sardine sardine = buildSardine(context);
+            final Sardine sardine = buildSardine();
 
             sardine.delete(url);
-            session.transfer(flowFile, RELATIONSHIP_SUCCESS);
+            session.transfer(flowFile, REL_SUCCESS);
         } catch (IOException e) {
             getLogger().error("Failed to delete WebDAV resource", e);
             flowFile = session.penalize(flowFile);
-            session.transfer(flowFile, RELATIONSHIP_FAILURE);
+            session.transfer(flowFile, REL_FAILURE);
         }
     }
 }
