@@ -16,11 +16,7 @@
  */
 package org.apache.nifi.processors.webdav;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.util.HashMap;
-import java.util.Map;
-
+import com.github.sardine.Sardine;
 import org.apache.http.protocol.HTTP;
 import org.apache.nifi.annotation.behavior.DynamicProperty;
 import org.apache.nifi.annotation.behavior.ReadsAttribute;
@@ -28,19 +24,21 @@ import org.apache.nifi.annotation.behavior.ReadsAttributes;
 import org.apache.nifi.annotation.documentation.CapabilityDescription;
 import org.apache.nifi.annotation.documentation.SeeAlso;
 import org.apache.nifi.annotation.documentation.Tags;
+import org.apache.nifi.expression.ExpressionLanguageScope;
 import org.apache.nifi.flowfile.FlowFile;
 import org.apache.nifi.processor.ProcessContext;
 import org.apache.nifi.processor.ProcessSession;
 import org.apache.nifi.processor.exception.ProcessException;
-import org.apache.nifi.processor.io.InputStreamCallback;
 
-import com.github.sardine.Sardine;
+import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 
-@Tags({ "webdav", "egress" })
+@Tags({"webdav", "egress"})
 @CapabilityDescription("Pit Resourcse to a WebDAV location")
-@SeeAlso({ ListWebDAV.class, FetchWebDAV.class })
-@ReadsAttributes({ @ReadsAttribute(attribute = "mime.type", description = "The content type of the file") })
-@DynamicProperty(name = "Custom Property", value = "Attribute Expression Language", supportsExpressionLanguage = true, description = "Addeds custom properties to the WebDAV resource")
+@SeeAlso({ListWebDAV.class, FetchWebDAV.class})
+@ReadsAttributes({@ReadsAttribute(attribute = "mime.type", description = "The content type of the file")})
+@DynamicProperty(name = "Custom Property", value = "Attribute Expression Language", expressionLanguageScope = ExpressionLanguageScope.FLOWFILE_ATTRIBUTES, description = "Addeds custom properties to the WebDAV resource")
 public class PutWebDAV extends AbstractWebDAVProcessor {
 
     @Override
@@ -52,13 +50,14 @@ public class PutWebDAV extends AbstractWebDAVProcessor {
 
         final String url = context.getProperty(URL).evaluateAttributeExpressions(flowFile).getValue();
         addAuth(context, url);
-        final Sardine sardine = buildSardine(context);
-        
+        final Sardine sardine = buildSardine();
+
         final String contentType = flowFile.getAttribute("mime.type");
         final long contentLength = flowFile.getSize();
 
-        final Map<String, String> headers = new HashMap<String, String>() {
+        final Map<String, String> headers = new HashMap<>() {
             private static final long serialVersionUID = 1L;
+
             {
                 put(HTTP.CONTENT_TYPE, contentType);
                 put(HTTP.CONTENT_LEN, String.valueOf(contentLength));
@@ -66,21 +65,18 @@ public class PutWebDAV extends AbstractWebDAVProcessor {
         };
 
         try {
-            session.read(flowFile, new InputStreamCallback() {
-                @Override
-                public void process(InputStream in) throws IOException {
-                    try {
-                        sardine.put(url, in, headers);
-                    } catch (IOException e) {
-                        getLogger().error("Failed to put file", e);
-                        throw e;
-                    }
+            session.read(flowFile, in -> {
+                try {
+                    sardine.put(url, in, headers);
+                } catch (IOException e) {
+                    getLogger().error("Failed to put file", e);
+                    throw e;
                 }
             });
-            session.transfer(flowFile, RELATIONSHIP_SUCCESS);
+            session.transfer(flowFile, REL_SUCCESS);
         } catch (Exception e) {
             flowFile = session.penalize(flowFile);
-            session.transfer(flowFile, RELATIONSHIP_FAILURE);
+            session.transfer(flowFile, REL_FAILURE);
             // TODO - update the properties on the resource if required and include dynamic properties
             // TODO - handle missing collections
         }
