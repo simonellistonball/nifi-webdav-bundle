@@ -16,7 +16,6 @@
  */
 package org.apache.nifi.processors.webdav;
 
-import org.apache.nifi.processors.webdav.MockSardine.MockDavResource;
 import org.apache.nifi.processors.webdav.MockSardine.MockSardine;
 import org.apache.nifi.util.TestRunner;
 import org.apache.nifi.util.TestRunners;
@@ -24,38 +23,40 @@ import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mockito;
 
-import java.net.URISyntaxException;
-import java.util.Date;
+import java.util.HashMap;
+import java.util.Map;
 
 
-public class ListWebDAVTest {
+public class PutWebDAVTest {
 
     private TestRunner testRunner;
+    private MockSardine mockSardine;
 
     @Before
-    public void init() throws URISyntaxException {
+    public void init() {
         // start a dummy webdav server
-        MockSardine mockSardine = new MockSardine();
-        ListWebDAV test = Mockito.spy(new ListWebDAV());
+        mockSardine = new MockSardine();
+        PutWebDAV test = Mockito.spy(new PutWebDAV());
         Mockito.doReturn(mockSardine).when(test).buildSardine();
-        mockSardine.addResource(new MockDavResource("/test/file1", new Date(1000), "mime/test", 1L));
-        mockSardine.addResource(new MockDavResource("/test/file2", new Date(1000), "mime/test", 1L));
         testRunner = TestRunners.newTestRunner(test);
     }
 
     @Test
     public void testProcessor() {
         testRunner.assertNotValid();
-        testRunner.setProperty(ListWebDAV.URL, "https://test.com/webdav");
-        testRunner.setProperty(ListWebDAV.USERNAME, "test");
-        testRunner.setProperty(ListWebDAV.PASSWORD, "test");
+        testRunner.setProperty(FetchWebDAV.URL, "https://test.com/webdav/test/file");
+        testRunner.setProperty(FetchWebDAV.USERNAME, "test");
+        testRunner.setProperty(FetchWebDAV.PASSWORD, "test");
         testRunner.setValidateExpressionUsage(false);
         testRunner.assertValid();
+        Map<String, String> attrs = new HashMap<>();
+        attrs.put("mime.test", "type/test");
+        testRunner.enqueue("test", attrs);
         testRunner.run();
         testRunner.assertAllFlowFilesTransferred(ListWebDAV.REL_SUCCESS);
-        testRunner.assertTransferCount(ListWebDAV.REL_SUCCESS, 2);
-        testRunner.assertAllConditionsMet(ListWebDAV.REL_SUCCESS, mockFlowFile -> mockFlowFile.getAttribute("path").startsWith("/test/file"));
-        testRunner.assertAllConditionsMet(ListWebDAV.REL_SUCCESS, mockFlowFile -> mockFlowFile.getAttribute("filename").startsWith("file"));
+        testRunner.assertTransferCount(ListWebDAV.REL_SUCCESS, 1);
+        testRunner.assertAllConditionsMet(ListWebDAV.REL_SUCCESS, mockFlowFile -> mockFlowFile.isContentEqual("test"));
+        assert this.mockSardine.putCount==1;
     }
 
 }

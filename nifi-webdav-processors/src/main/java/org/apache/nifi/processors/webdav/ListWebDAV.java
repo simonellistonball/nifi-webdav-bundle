@@ -147,6 +147,7 @@ public class ListWebDAV extends AbstractWebDAVProcessor {
                 put("path", resource.getPath());
                 put("etag", resource.getEtag());
                 put("mime.type", resource.getContentType());
+                put("content.length", String.valueOf(resource.getContentLength()));
                 put("isDirecotry", String.valueOf(resource.isDirectory()));
                 if (resource.getCreation() != null)
                     put("date.created", String.valueOf(resource.getCreation().getTime()));

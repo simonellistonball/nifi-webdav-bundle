@@ -44,7 +44,7 @@ import java.util.Map.Entry;
 @InputRequirement(Requirement.INPUT_REQUIRED)
 public class FetchWebDAV extends AbstractWebDAVProcessor {
 
-    private static final PropertyDescriptor GET_ALL_PROPS = new PropertyDescriptor.Builder()
+    public static final PropertyDescriptor GET_ALL_PROPS = new PropertyDescriptor.Builder()
             .name("Get All Properties")
             .description("Whether to fetch all properties for the resource")
             .required(true)
